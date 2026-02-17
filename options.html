@@ -84,6 +84,17 @@
       <button id="showDataBtn" class="secondary">データを表示</button>
     </div>
   </div>
+
+  <div class="section">
+    <h2>ダウンロード設定</h2>
+    <label>
+      <input type="checkbox" id="autoFolder">
+      サークル名/作品名のサブフォルダに自動保存する
+    </label>
+    <p style="color: #666; font-size: 12px;">
+      オンの場合、ダウンロードフォルダ内に「サークル名/作品名」のフォルダを自動作成して保存します。
+    </p>
+  </div>
   
   <div class="section">
     <h2>インポート</h2>
@@ -97,7 +108,7 @@
     <p>全てのデータを削除します。この操作は取り消せません。</p>
     <button id="clearBtn" class="danger">全データを削除</button>
   </div>
-  
+
   <div id="status"></div>
   
   <script src="options.js"></script>

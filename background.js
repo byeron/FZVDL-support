@@ -28,27 +28,48 @@
     - Mylibrary上のDL済み作品の left-border の色を緑色に変更する
     - 拡張機能のオプションページにエクスポート/インポート機能を付ける
     - 拡張機能のオプションページに storage.local をリセットする機能を付ける
+    - ダウンロード時に作品情報に基づくディレクトリに格納する
+    - 作品登録時に、作品名とサークル名を同時に登録する -> V2 にて実装
+    - My library 上の処理のパフォーマンスを上げる
 
+*/
+
+/* 実装中
+    - なし
 */
 
 /* 追加すべき機能のリスト
     - 各作品ページでのダウンロード状況を追跡するのをやめる（一旦）
-    - My library 上の処理のパフォーマンスを上げる
-    - 作品登録時に、作品名とサークル名を同時に登録する
 */
 
 // 作品情報を保存
-async function saveWorkInfo(workId, url, filename) {
+async function saveWorkInfo(workId, url, filename, tabId) {
     try {
+        //作品情報の定義
         const workInfo = {
             id: workId,
             url: url,
             filename: filename,
-            downloadDate: new Date().toISOString()
+            downloadDate: new Date().toISOString(),
+            title: null,  //optional
+            circle: null, //optional
+            releaseDate: null  // optional
         };
 
         const result = await browser.storage.local.get('works');
         const works = result.works || [];
+
+        // ページ情報を取得（オプション）
+        try {
+            const pageInfo = await browser.tabs.sendMessage(tabId, { action: 'getPageInfo' });
+            if (pageInfo) {
+                workInfo.title = pageInfo.title;
+                workInfo.circle = pageInfo.circle;
+                workInfo.releaseDate = pageInfo.releaseDate;
+            }
+        } catch (error) {
+            console.warn("ページ情報の取得に失敗（登録は継続）:", error);
+        }
 
         const existingIndex = works.findIndex(w => w.id === workId);
         if (existingIndex >= 0) {
@@ -61,6 +82,11 @@ async function saveWorkInfo(workId, url, filename) {
 
         await browser.storage.local.set({ works: works });
         console.log("保存完了。総作品数:", works.length);
+
+        const tabs = await browser.tabs.query({ active: true, currentWindow: true });  // DL完了時、ページの再読み込みなしにアイコンを変更する
+        if (tabs.length > 0 && tabs[0].url) {
+            await updateIcon(tabs[0].id, tabs[0].url);
+        }
 
     } catch (error) {
         console.error("保存エラー:", error);
@@ -118,25 +144,41 @@ async function updateIcon(tabId, url) {
 
 // タブが切り替わったときにアイコンを更新
 browser.tabs.onActivated.addListener(async (activeInfo) => {
-  try {
-    const tab = await browser.tabs.get(activeInfo.tabId);
-    if (tab.url) {
-      await updateIcon(activeInfo.tabId, tab.url);
+    try {
+        const tab = await browser.tabs.get(activeInfo.tabId);
+        if (tab.url) {
+            await updateIcon(activeInfo.tabId, tab.url);
+        }
+    } catch (error) {
+        console.error("タブ切り替えエラー:", error);
     }
-  } catch (error) {
-    console.error("タブ切り替えエラー:", error);
-  }
 });
 
 // タブのURLが更新されたときにアイコンを更新
 browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.url) {
-    await updateIcon(tabId, changeInfo.url);
-  }
+    if (changeInfo.url) {
+        await updateIcon(tabId, changeInfo.url);
+    }
 });
+
+// ファイルシステムで使えない文字を除去する関数
+function sanitizeFolderName(name) {
+    // Windows/Linux/macOSで使えない文字を置換
+    return name
+        .replace(/[<>:"/\\|?*]/g, '_')  // 禁止文字を_に置換
+        .replace(/\s+/g, ' ')            // 連続した空白を1つに
+        .trim()
+        .substring(0, 200);              // 長すぎる名前を切り詰め
+}
 
 // ダウンロード開始時にタブURLを記録
 const downloadTabMap = new Map();
+
+// 設定を取得する関数をcommon.jsに追加することも検討
+async function getSettings() {
+  const result = await browser.storage.local.get('settings');
+  return result.settings || { autoFolder: true };
+}
 
 // ダウンロード時にアクティブなタブのURLをダウンロードIDとバインドして保存する
 browser.downloads.onCreated.addListener(async (downloadItem) => {
@@ -145,13 +187,53 @@ browser.downloads.onCreated.addListener(async (downloadItem) => {
     try {
         // アクティブなタブを取得
         const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-        if (tabs.length > 0) {
-            const currentUrl = tabs[0].url;
-            console.log("現在のページURL:", currentUrl);
+        if (tab.length == 0) return; // 有効なタブがないとき
 
-            // ダウンロードIDとタブURLを紐付け
-            downloadTabMap.set(downloadItem.id, currentUrl);
+        const currentUrl = tabs[0].url;
+        const tabId = tabs[0].id;
+        console.log("現在のページURL:", currentUrl);
+        if (!isFanzaWork(currentUrl)) return; // URL が違うとき
+
+        // ダウンロードIDとタブURLを紐付け
+        downloadTabMap.set(downloadItem.id, { url: currentUrl, tabId: tabId });
+
+        const workId = extractWorkId(currentUrl);
+        if (!workId) return;  // 作品IDが抽出できなかったとき
+
+        const settings = await getSettings();
+        if (!settings.autoFolder) {
+            console.log("自動フォルダ分けはオフです");
+            return;
         }
+
+        let folderPath = null;
+        try {
+            const pageInfo = await browser.tabs.sendMessage(tabId, { action: 'getPageInfo' });
+            if (pageInfo && pageInfo.circle && pageInfo.title) {
+                // サークル名と作品名でサブフォルダを作成
+                const circle = sanitizeFolderName(pageInfo.circle);
+                const title = sanitizeFolderName(pageInfo.title);
+                const filename = downloadItem.filename.split(/[\\/]/).pop();
+                folderPath = `${circle}/${title}/${filename}`;
+            }
+        } catch (error) {
+            console.warn("ページ情報の取得に失敗、デフォルトパスで保存:", error.message);
+        }
+
+        if (!folderPath) return;
+        console.log("保存先を変更:", folderPath);
+
+        // 元のダウンロードをキャンセル
+        await browser.downloads.cancel(downloadItem.id);
+        await browser.downloads.erase({ id: downloadItem.id });
+
+        // サブフォルダを提案しつつダイアログを表示
+        await browser.downloads.download({
+            url: downloadItem.url,
+            filename: folderPath,
+            saveAs: false  // ダイアログを表示
+        });
+
     } catch (error) {
         console.error("タブ情報取得エラー:", error);
     }
@@ -168,16 +250,18 @@ browser.downloads.onChanged.addListener(async (downloadDelta) => {
 
             console.log("ファイル名:", download.filename);
 
-            const pageUrl = downloadTabMap.get(downloadDelta.id);
+            const tabInfo = downloadTabMap.get(downloadDelta.id);
 
-            // ページURLがないとき処理終了
-            if (!pageUrl) {
-                console.log("⚠ ページURLが見つかりませんでした");
+            if (!tabInfo) {
+                console.log("⚠ ページ情報が見つかりませんでした");
                 return;
             }
+
+            const pageUrl = tabInfo.url;
+            const tabId = tabInfo.tabId;
+
             console.log("ダウンロード元ページ:", pageUrl);
 
-            // ページURLがFANZAのリンクではないとき処理終了
             if (!isFanzaWork(pageUrl)) {
                 console.log("- Fanza作品ではありません");
                 downloadTabMap.delete(downloadDelta.id);
@@ -188,15 +272,15 @@ browser.downloads.onChanged.addListener(async (downloadDelta) => {
 
             const workId = extractWorkId(pageUrl);
 
-            // 作品IDが抽出できないとき処理終了
             if (!workId) {
                 console.log("⚠ 作品IDを抽出できませんでした");
+                console.log("   URL:", pageUrl);
                 downloadTabMap.delete(downloadDelta.id);
                 return;
             }
 
             console.log("作品ID:", workId);
-            await saveWorkInfo(workId, pageUrl, download.filename);
+            await saveWorkInfo(workId, pageUrl, download.filename, tabId);
 
             downloadTabMap.delete(downloadDelta.id);
 
