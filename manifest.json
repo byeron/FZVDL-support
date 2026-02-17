@@ -37,7 +37,7 @@
             ],
             "js": [
                 "common.js",
-                "content_perf.js"
+                "content.js"
             ],
             "run_at": "document_idle"
         }
@@ -46,4 +46,5 @@
         "page": "options.html",
         "open_in_tab": true
     }
+
 }
