@@ -10,6 +10,7 @@ function showStatus(message, isError = false) {
   const status = document.getElementById('status');
   status.textContent = message;
   status.className = isError ? 'error' : 'success';
+  status.style.display = 'block';
   
   setTimeout(() => {
     status.style.display = 'none';
@@ -114,5 +115,22 @@ document.getElementById('clearBtn').addEventListener('click', async () => {
   }
 });
 
+// 設定を読み込む
+async function loadSettings() {
+  const result = await browser.storage.local.get('settings');
+  const settings = result.settings || { autoFolder: true };
+  document.getElementById('autoFolder').checked = settings.autoFolder;
+}
+
+// 設定を保存する
+document.getElementById('autoFolder').addEventListener('change', async (event) => {
+  const result = await browser.storage.local.get('settings');
+  const settings = result.settings || {};
+  settings.autoFolder = event.target.checked;
+  await browser.storage.local.set({ settings });
+  showStatus('設定を保存しました');
+});
+
 // 初期化
+loadSettings();
 updateWorkCount();

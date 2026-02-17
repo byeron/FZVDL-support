@@ -3,27 +3,24 @@
     "name": "Fanza Voice DL Support",
     "version": "1.0.0",
     "description": "Fanza音声作品のダウンロード管理",
-
     "icons": {
         "48": "icons/icon-48.png",
         "96": "icons/icon-96.png"
     },
-
     "permissions": [
         "downloads",
+        "downloads.open",
         "storage",
         "tabs",
         "*://*.dmm.co.jp/*",
         "*://*.dmm.com/*"
     ],
-
     "background": {
         "scripts": [
             "common.js",
             "background.js"
         ]
     },
-
     "browser_action": {
         "default_icon": {
             "48": "icons/icon-default-48.png",
@@ -32,22 +29,22 @@
         "default_title": "Fanza Voice Manager",
         "default_popup": "popup/popup.html"
     },
-
-  "content_scripts": [
-    {
-      "matches": [
-        "*://*.dmm.co.jp/dc/-/mylibrary/*",
-        "*://*.dmm.com/dc/-/mylibrary/*"
-      ],
-      "js": [
-        "common.js",
-        "content.js"
+    "content_scripts": [
+        {
+            "matches": [
+                "*://*.dmm.co.jp/dc/-/mylibrary/*",
+                "*://*.dmm.com/dc/-/mylibrary/*"
+            ],
+            "js": [
+                "common.js",
+                "content.js"
+            ],
+            "run_at": "document_idle"
+        }
     ],
-      "run_at": "document_idle"
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": true
     }
-  ],
-"options_ui": {
-    "page": "options.html",
-    "open_in_tab": true
-  }
+
 }
