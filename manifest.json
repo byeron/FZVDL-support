@@ -3,6 +3,17 @@
     "name": "Fanza Voice DL Support",
     "version": "1.0.0",
     "description": "Fanza音声作品のダウンロード管理",
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "fanza-voice-dl-support@byeron",
+            "data_collection_permissions": {
+                "required": [
+                    "websiteContent",
+                    "websiteActivity"
+                ]
+            }
+        }
+    },
     "icons": {
         "48": "icons/icon-48.png",
         "96": "icons/icon-96.png"
@@ -48,3 +59,4 @@
     }
 
 }
+
