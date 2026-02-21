@@ -180,60 +180,71 @@ async function getSettings() {
   return result.settings || { autoFolder: true };
 }
 
+// 拡張機能が作成したダウンロードIDを記録するSet
+const extensionDownloadUrls = new Set();
+
 // ダウンロード時にアクティブなタブのURLをダウンロードIDとバインドして保存する
 browser.downloads.onCreated.addListener(async (downloadItem) => {
+    // 拡張機能自身が作成したダウンロードはスキップ
+    if (extensionDownloadUrls.has(downloadItem.url)) {
+        extensionDownloadUrls.delete(downloadItem.url);
+        return;
+    }
     console.log("=== ダウンロード開始 ===", downloadItem.id);
 
     try {
         // アクティブなタブを取得
         const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-        if (tab.length == 0) return; // 有効なタブがないとき
+        if (tabs.length == 0) return; // 有効なタブがないとき
 
         const currentUrl = tabs[0].url;
         const tabId = tabs[0].id;
         console.log("現在のページURL:", currentUrl);
         if (!isFanzaWork(currentUrl)) return; // URL が違うとき
 
-        // ダウンロードIDとタブURLを紐付け
-        downloadTabMap.set(downloadItem.id, { url: currentUrl, tabId: tabId });
-
         const workId = extractWorkId(currentUrl);
         if (!workId) return;  // 作品IDが抽出できなかったとき
 
-        const settings = await getSettings();
+        const settings = await getSettings();  //自動フォルダ分けをするかどうか > off
         if (!settings.autoFolder) {
+            // ダウンロードIDとタブURLを紐付け
+            downloadTabMap.set(downloadItem.id, { url: currentUrl, tabId: tabId });
+            extensionDownloadUrls.add(downloadItem.url);
             console.log("自動フォルダ分けはオフです");
             return;
         }
-
-        let folderPath = null;
-        try {
-            const pageInfo = await browser.tabs.sendMessage(tabId, { action: 'getPageInfo' });
-            if (pageInfo && pageInfo.circle && pageInfo.title) {
-                // サークル名と作品名でサブフォルダを作成
-                const circle = sanitizeFolderName(pageInfo.circle);
-                const title = sanitizeFolderName(pageInfo.title);
-                const filename = downloadItem.filename.split(/[\\/]/).pop();
-                folderPath = `${circle}/${title}/${filename}`;
+        else {  //自動フォルダ分け on
+            let folderPath = null;
+            try {
+                const pageInfo = await browser.tabs.sendMessage(tabId, { action: 'getPageInfo' });
+                if (pageInfo && pageInfo.circle && pageInfo.title) {
+                    // サークル名と作品名でサブフォルダを作成
+                    const circle = sanitizeFolderName(pageInfo.circle);
+                    const title = sanitizeFolderName(pageInfo.title);
+                    const filename = downloadItem.filename.split(/[\\/]/).pop();
+                    folderPath = `${circle}/${title}/${filename}`;
+                }
+            } catch (error) {
+                console.warn("ページ情報の取得に失敗、デフォルトパスで保存:", error.message);
             }
-        } catch (error) {
-            console.warn("ページ情報の取得に失敗、デフォルトパスで保存:", error.message);
+
+            if (!folderPath) return;
+            console.log("保存先を変更:", folderPath);
+
+            extensionDownloadUrls.add(downloadItem.url);
+
+            // 元のダウンロードをキャンセル
+            await browser.downloads.cancel(downloadItem.id);
+            await browser.downloads.erase({ id: downloadItem.id });
+            downloadTabMap.delete(downloadItem.id);
+
+            const newDownloadId = await browser.downloads.download({
+                url: downloadItem.url,
+                filename: folderPath
+            });
+
+            downloadTabMap.set(newDownloadId, { url: currentUrl, tabId: tabId });
         }
-
-        if (!folderPath) return;
-        console.log("保存先を変更:", folderPath);
-
-        // 元のダウンロードをキャンセル
-        await browser.downloads.cancel(downloadItem.id);
-        await browser.downloads.erase({ id: downloadItem.id });
-
-        // サブフォルダを提案しつつダイアログを表示
-        await browser.downloads.download({
-            url: downloadItem.url,
-            filename: folderPath,
-            saveAs: false  // ダイアログを表示
-        });
-
     } catch (error) {
         console.error("タブ情報取得エラー:", error);
     }
