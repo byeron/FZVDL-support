@@ -1,63 +1,60 @@
 {
-    "manifest_version": 2,
-    "name": "Fanza Voice DL Support",
-    "version": "1.0.0",
-    "description": "Fanza音声作品のダウンロード管理",
-    "browser_specific_settings": {
-        "gecko": {
-            "id": "fanza-voice-dl-support@byeron",
-            "data_collection_permissions": {
-                "required": [
-                    "websiteContent",
-                    "websiteActivity"
-                ]
-            }
-        }
-    },
-    "icons": {
-        "48": "icons/icon-default-48.png",
-        "96": "icons/icon-default-96.png"
-    },
-    "permissions": [
-        "downloads",
-        "downloads.open",
-        "storage",
-        "tabs",
-        "*://*.dmm.co.jp/*",
-        "*://*.dmm.com/*"
-    ],
-    "background": {
-        "scripts": [
-            "common.js",
-            "background.js"
+  "manifest_version": 2,
+  "name": "Fanza Voice DL Support",
+  "version": "1.0.0",
+  "description": "Fanza音声作品のダウンロード管理",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "fanza-voice-dl-support@byeron",
+      "data_collection_permissions": {
+        "required": [
+          "websiteContent",
+          "websiteActivity"
         ]
-    },
-    "browser_action": {
-        "default_icon": {
-            "48": "icons/icon-default-48.png",
-            "96": "icons/icon-default-96.png"
-        },
-        "default_title": "Fanza Voice Manager",
-        "default_popup": "popup/popup.html"
-    },
-    "content_scripts": [
-        {
-            "matches": [
-                "*://*.dmm.co.jp/dc/-/mylibrary/*",
-                "*://*.dmm.com/dc/-/mylibrary/*"
-            ],
-            "js": [
-                "common.js",
-                "content.js"
-            ],
-            "run_at": "document_idle"
-        }
-    ],
-    "options_ui": {
-        "page": "options.html",
-        "open_in_tab": true
+      }
     }
-
+  },
+  "icons": {
+    "48": "icons/icon-default-48.png",
+    "96": "icons/icon-default-96.png"
+  },
+  "permissions": [
+    "downloads",
+    "downloads.open",
+    "storage",
+    "tabs",
+    "*://*.dmm.co.jp/*",
+    "*://*.dmm.com/*"
+  ],
+  "background": {
+    "scripts": [
+      "common.js",
+      "background.js"
+    ]
+  },
+  "browser_action": {
+    "default_icon": {
+      "48": "icons/icon-default-48.png",
+      "96": "icons/icon-default-96.png"
+    },
+    "default_title": "Fanza Voice Manager",
+    "default_popup": "popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.dmm.co.jp/dc/-/mylibrary/*",
+        "*://*.dmm.com/dc/-/mylibrary/*"
+      ],
+      "js": [
+        "common.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
 }
-
-

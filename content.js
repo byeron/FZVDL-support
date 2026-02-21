@@ -7,7 +7,7 @@ console.log("=== Fanza Download Manager Content Script 起動 ===");
 */
 
 // 処理済みの要素を追跡するためのWeakSet
-const processedElements = new WeakSet();
+let processedElements = new WeakSet();
 
 // 単一の作品要素にボーダーを適用する関数
 async function updateSingleWorkBorder(workElement) {
@@ -124,10 +124,10 @@ if (document.body) {
 browser.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local' && changes.works) {
         console.log("ストレージが更新されました。全ボーダーを更新します");
+        // WeakSetにはclearメソッドがないので、新しいインスタンスで代用
+        processedElements = new WeakSet();
+
         // ストレージ更新時は全要素を再チェック（処理済みフラグをクリア）
-        processedElements.clear = function () {
-            // WeakSetにはclearメソッドがないので、新しいインスタンスで代用
-        };
         updateWorkListBorders(false);
     }
 });
